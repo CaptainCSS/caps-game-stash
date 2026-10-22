@@ -1,44 +1,147 @@
-// LAST GAME IS dungeons and degenerate gamble
-
 let files = [];
 
-// Fetch the directory contents using jsDelivr's GitHub API
 async function loadGameFiles() {
   try {
-    const response = await fetch("https://data.jsdelivr.com/v1/package/gh/CaptainCSS/caps-game-stash/contents");
+    // Fetch the list from your specific GitHub repository
+    const response = await fetch("https://api.github.com/repos/CaptainCSS/caps-game-stash/contents/UGS-Files");
     const data = await response.json();
     
-    // Navigate through the jsDelivr directory tree to find your files folder
-    // (Adjust the path if your folder structure is nested differently)
-    const files = [];
-    
-    // Recursively or directly find the UGS-Files folder in the tree
-    function searchFiles(node) {
-      if (node.name === "UGS-Files" && node.files) {
-        node.files.forEach(file => {
-          let name = file.name;
-          const lastDot = name.lastIndexOf('.');
-          if (lastDot > 0) {
-            name = name.substring(0, lastDot);
-          }
-          files.push(name);
-        });
-      }
-      if (node.files) {
-        node.files.forEach(searchFiles);
-      }
-    }
-    
-    searchFiles(data);
-    
-    // Fallback if data structure is a flat list or direct path
-    // If the above doesn't catch it, we can also use the standard gh API since jsDelivr is usually for raw files, 
-    // but wait—let's use the direct jsDelivr data endpoint format for listing:
-    
-    // Let's optimize this to use the standard GitHub contents API combined with jsDelivr for loading, 
-    // OR use jsDelivr's data API cleanly:
-    
+    files = data
+      .filter(item => item.type === "file")
+      .map(item => {
+        let name = item.name;
+        const lastDot = name.lastIndexOf('.');
+        if (lastDot > 0) {
+          name = name.substring(0, lastDot);
+        }
+        return name;
+      });
+
+    generateAllSections();
   } catch (error) {
     console.error("Failed to load game files:", error);
   }
 }
+
+function generateAllSections() {
+  try {
+    document.getElementById("lolbutton").remove();
+  } catch (e) {}
+  
+  const allChars = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+    "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+    "U", "V", "W", "X", "Y", "Z",
+  ];
+
+  const filesByChar = {};
+  allChars.forEach((char) => {
+    filesByChar[char] = [];
+  });
+
+  files.forEach((file) => {
+    const lower = file.toLowerCase();
+    if (lower.startsWith("cl")) {
+      const aftercl = lower.substring(2);
+      if (aftercl.length > 0) {
+        const firstChar = aftercl[0].toUpperCase();
+        if (filesByChar[firstChar]) {
+          filesByChar[firstChar].push(file);
+        }
+      }
+    }
+  });
+
+  const container = document.getElementById("sections-container");
+  container.innerHTML = "";
+
+  allChars.forEach((char) => {
+    const section = document.createElement("div");
+    section.className = "letter-section";
+    section.id = `section-${char}`;
+
+    const header = document.createElement("div");
+    header.className = "letter-header";
+    header.textContent = char;
+    section.appendChild(header);
+
+    const buttonsContainer = document.createElement("div");
+    buttonsContainer.className = "buttons-container";
+
+    if (filesByChar[char].length > 0) {
+      filesByChar[char].forEach((file) => {
+        const btn = document.createElement("input");
+        btn.type = "button";
+        btn.value = file;
+        btn.onclick = () => {
+          function normalizeFileName(name) {
+            if (name.includes(".") && name.lastIndexOf(".") > 0) return name;
+            return name + ".html";
+          }
+
+          const normalized = normalizeFileName(file);
+          const encoded = encodeURIComponent(normalized);
+
+          // Using jsDelivr to load your files directly from your new repo!
+          fetch(
+            `https://cdn.jsdelivr.net/gh/CaptainCSS/caps-game-stash/UGS-Files/${encoded}?t=${Date.now()}`
+          )
+            .then((response) => response.text())
+            .then((text) => {
+              const newWin = window.open("about:blank", "_blank");
+              if (newWin) {
+                newWin.document.open();
+                newWin.document.write(text);
+                newWin.document.close();
+              }
+            });
+        };
+        btn.style.width = "100%";
+        btn.style.height = "100%";
+        buttonsContainer.appendChild(btn);
+      });
+    } else {
+      section.classList.add("empty");
+      const emptyMsg = document.createElement("div");
+      emptyMsg.className = "empty-message";
+      emptyMsg.textContent = "No files";
+      buttonsContainer.appendChild(emptyMsg);
+    }
+
+    section.appendChild(buttonsContainer);
+    container.appendChild(section);
+  });
+
+  generateSidebar(allChars, filesByChar);
+}
+
+function generateSidebar(allChars, filesByChar) {
+  const sidebar = document.getElementById("sidebar");
+  sidebar.innerHTML = "";
+
+  allChars.forEach((char) => {
+    const btn = document.createElement("button");
+    btn.className = "sidebar-btn";
+    btn.textContent = char;
+
+    if (filesByChar[char].length === 0) {
+      btn.classList.add("empty");
+    } else {
+      btn.onclick = () => {
+        const section = document.getElementById(`section-${char}`);
+        if (section) {
+          section.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      };
+    }
+
+    sidebar.appendChild(btn);
+  });
+}
+
+// Kick off the script
+loadGameFiles();
